@@ -1,0 +1,39 @@
+# IDE / Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python / packaging
+__pycache__/
+*.py[cod]
+*.egg-info/
+pip-wheel-metadata/
+build/
+dist/
+*.log
+.coverage
+.pytest_cache/
+.mypy_cache/
+
+# env / secrets
+.env
+.env.*
+.env.local
+env.txt
+.envrc
+
+# virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Others
+node_modules/

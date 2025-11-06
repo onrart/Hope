@@ -1,0 +1,7 @@
+python-dotenv
+requests
+pandas
+numpy
+python-binance==1.0.19
+ccxt
+google-generativeai
