@@ -1,0 +1,68 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Test / coverage / pytest cache
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Logs and runtime files
+*.log
+logs/
+history.json
+state.json
+*.pid
+*.sock
+
+# Secrets / dotenv
+.env
+.env.*
+secrets.*
+*.key
+*.pem
+
+# Build / distribution
+dist/
+build/
+*.egg-info/
+
+# cache / local data
+.cache/
+tmp/
+*.tmp
+
+# IDE / system files
+*.swp
+*.bak
+
+# Optional: ignore test outputs or large data; keep tests source files
+*.csv
+*.gz
+*.sqlite
+*.db
+
+# If you keep any local-only files (like credentials backups), explicitly ignore them:
+# my_local_keys/
