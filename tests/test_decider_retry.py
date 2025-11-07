@@ -19,9 +19,11 @@ class _Models:
         raise RuntimeError("override me")
 
 genai_mod.models = _Models
+genai_mod.configure = lambda **kwargs: None
 google_mod.genai = genai_mod
 sys.modules["google"] = google_mod
 sys.modules["google.genai"] = genai_mod
+sys.modules["google.generativeai"] = genai_mod
 
 from deciders.decider_gemini import decide
 

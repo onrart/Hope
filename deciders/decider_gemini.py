@@ -2,6 +2,7 @@
 # Python 3.11 compatible
 from __future__ import annotations
 import json
+import os
 import time
 import random
 import logging
@@ -10,9 +11,112 @@ from typing import Any, Callable, Dict, Optional
 # import shared helpers
 from core.decision_utils import safe_json, normalize_decision
 
+try:  # pragma: no cover - import guard handled via tests
+    import google.generativeai as _genai_mod
+except Exception:  # pragma: no cover
+    try:
+        from google import genai as _genai_mod  # type: ignore
+    except Exception:  # pragma: no cover
+        _genai_mod = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
-__all__ = ["decide_with_gemini", "default_client_call", "safe_resp_text"]
+__all__ = ["decide", "decide_with_gemini", "default_client_call", "safe_resp_text"]
+
+
+_DEFAULT_MODEL = os.getenv("GOOGLE_MODEL", "gemini-1.5-flash")
+_PROMPT_INSTRUCTIONS = (
+    "You are an automated trading analyst. Given the symbol and market snapshot, "
+    "respond ONLY with JSON describing the action to take."
+)
+
+
+def _ensure_genai_configured() -> None:
+    if _genai_mod is None:
+        raise RuntimeError(
+            "google-generativeai (or compatible google.genai client) is required."
+        )
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError("GOOGLE_API_KEY environment variable is required")
+    configure = getattr(_genai_mod, "configure", None)
+    if callable(configure):
+        configure(api_key=api_key)
+
+
+def _call_gemini(prompt: str, *, model: Optional[str] = None, timeout: int = 10):
+    """Call Google Gemini using either the new or legacy SDK surface."""
+
+    _ensure_genai_configured()
+    model_name = model or _DEFAULT_MODEL
+
+    if hasattr(_genai_mod, "GenerativeModel"):
+        generative_model = _genai_mod.GenerativeModel(model_name)
+        return generative_model.generate_content(
+            prompt, request_options={"timeout": timeout}
+        )
+
+    client_cls = getattr(_genai_mod, "Client", None)
+    models_iface = getattr(_genai_mod, "models", None)
+    if callable(client_cls) and hasattr(models_iface, "generate_content"):
+        # Legacy surface (used by unit tests)
+        client_cls(api_key=os.getenv("GOOGLE_API_KEY"))
+        return models_iface.generate_content(
+            model=model_name,
+            contents=prompt,
+            request_options={"timeout": timeout},
+        )
+
+    raise RuntimeError("No compatible Gemini client available")
+
+
+def _build_prompt(symbol: str, snapshot: Dict[str, Any]) -> str:
+    snapshot_json = json.dumps(snapshot, ensure_ascii=False, indent=2)
+    return (
+        f"{_PROMPT_INSTRUCTIONS}\n"
+        f"Symbol: {symbol}\n"
+        "Respond with a JSON object with keys action, confidence, entry, take_profit, stop_loss.\n"
+        "Market snapshot:\n"
+        f"{snapshot_json}\n"
+        "The action must be BUY, SELL or HOLD. Confidence must be between 0 and 1."
+    )
+
+
+def decide(
+    symbol: str,
+    snapshot: Dict[str, Any],
+    *,
+    model: Optional[str] = None,
+    timeout: int = 10,
+    retries: int = 3,
+    dry_run: bool = False,
+    client_call_func: Optional[Callable[[str], Any]] = None,
+) -> Dict[str, Any]:
+    """High level helper that builds prompt and calls Gemini."""
+
+    trace_id = f"{symbol}-{int(time.time() * 1000)}"
+    prompt = _build_prompt(symbol, snapshot)
+    captured: Dict[str, Any] = {}
+
+    def _client(prompt_text: str, *, model: Optional[str] = None, timeout: int = timeout):
+        call_fn = client_call_func or _call_gemini
+        resp = call_fn(prompt_text, model=model, timeout=timeout)
+        captured["response"] = resp
+        return resp
+
+    decision = decide_with_gemini(
+        prompt,
+        client_call_func=_client,
+        model=model or _DEFAULT_MODEL,
+        timeout=timeout,
+        retries=retries,
+        trace_id=trace_id,
+        dry_run=dry_run,
+    )
+    decision["_prompt"] = prompt
+    decision["_model"] = model or _DEFAULT_MODEL
+    decision["_raw_text"] = safe_resp_text(captured.get("response"))
+    return decision
 
 
 # ---------------- retry/backoff helper ----------------
