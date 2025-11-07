@@ -1,5 +1,4 @@
 import copy
-import time
 
 from datetime import datetime, timezone
 
@@ -90,35 +89,3 @@ def test_get_system_status_exposes_gemini_history():
 
     assert status["history"][0]["gemini_text"] == entry["gemini_text"]
     assert status["history"][0]["status"] == "HOLD"
-
-
-def test_stop_system_loop_can_halt_running_thread(monkeypatch):
-    from core import monitoring
-
-    call_count = {"ticks": 0}
-
-    def fake_tick():
-        call_count["ticks"] += 1
-        return {
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "status": "HOLD",
-            "action": "HOLD",
-            "confidence": 0.5,
-            "dry_run": True,
-        }
-
-    monkeypatch.setattr("core.monitoring._system_tick", fake_tick)
-
-    start = monitoring.start_system_loop()
-    assert start["running"] is True
-
-    try:
-        # let the loop tick at least once
-        time.sleep(0.1)
-
-        stop = monitoring.stop_system_loop()
-        assert stop["running"] is False
-        assert stop["stopped"] is True
-        assert call_count["ticks"] >= 1
-    finally:
-        monitoring.stop_system_loop()

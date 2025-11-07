@@ -266,24 +266,6 @@ def start_system_loop() -> Dict[str, Any]:
         return {"started": True, "running": True}
 
 
-def stop_system_loop() -> Dict[str, Any]:
-    global _SYSTEM_THREAD
-    with _SYSTEM_LOCK:
-        thread = _SYSTEM_THREAD
-
-    _SYSTEM_STOP_EVENT.set()
-
-    if thread and thread.is_alive():
-        thread.join(timeout=10.0)
-
-    with _SYSTEM_LOCK:
-        running = bool(_SYSTEM_THREAD and _SYSTEM_THREAD.is_alive())
-        if not running:
-            _SYSTEM_STATE["running"] = False
-            _SYSTEM_THREAD = None
-        return {"stopped": not running, "running": running}
-
-
 def get_system_status() -> Dict[str, Any]:
     with _SYSTEM_LOCK:
         state = json.loads(json.dumps(_SYSTEM_STATE, default=str))
@@ -399,14 +381,6 @@ class _Handler(BaseHTTPRequestHandler):
                 <path d="M12 5l7 7-7 7" />
               </svg>
               <span>Sistemi Başlat</span>
-            </button>
-            <button id="stopSystem" class="inline-flex items-center gap-2 rounded-full bg-rose-500/70 px-4 py-2 font-medium text-white shadow-lg shadow-rose-950/40 transition hover:-translate-y-[1px] hover:bg-rose-500">
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24">
-                <path d="M6 6h12" />
-                <path d="M6 12h12" />
-                <path d="M6 18h12" />
-              </svg>
-              <span>Sistemi Durdur</span>
             </button>
             <span id="systemStatus" class="rounded-full bg-slate-900/80 px-3 py-1 text-xs">
               Pasif
@@ -561,7 +535,6 @@ class _Handler(BaseHTTPRequestHandler):
     const systemLastErrorEl = () => document.getElementById('systemLastError');
     const systemBody = () => document.getElementById('systemBody');
     const startButton = () => document.getElementById('startSystem');
-    const stopButton = () => document.getElementById('stopSystem');
 
     function formatUsd(value) {
       const val = Number(value || 0);
@@ -689,12 +662,6 @@ class _Handler(BaseHTTPRequestHandler):
         const statusEl = systemStatusEl();
         statusEl.textContent = running ? 'Çalışıyor' : 'Pasif';
         statusEl.className = systemStatusClass(running);
-        if (startButton()) {
-          startButton().disabled = running;
-        }
-        if (stopButton()) {
-          stopButton().disabled = !running;
-        }
         systemLastRunEl().textContent = data.last_run ? formatTs(data.last_run) : '--';
         if (data.last_error && data.last_error.error) {
           systemLastErrorEl().textContent = data.last_error.error;
@@ -729,31 +696,18 @@ class _Handler(BaseHTTPRequestHandler):
 
     async function startSystem() {
       try {
-        if (startButton()) startButton().disabled = true;
-        if (stopButton()) stopButton().disabled = true;
+        startButton().disabled = true;
         await fetch('/system/start', { method: 'POST' });
+        await renderSystemStatus();
       } catch (error) {
         console.error('Sistem başlatma hatası', error);
       } finally {
-        await renderSystemStatus();
-      }
-    }
-
-    async function stopSystem() {
-      try {
-        if (startButton()) startButton().disabled = true;
-        if (stopButton()) stopButton().disabled = true;
-        await fetch('/system/stop', { method: 'POST' });
-      } catch (error) {
-        console.error('Sistem durdurma hatası', error);
-      } finally {
-        await renderSystemStatus();
+        startButton().disabled = false;
       }
     }
 
     document.getElementById('refresh').addEventListener('click', load);
     startButton().addEventListener('click', startSystem);
-    stopButton().addEventListener('click', stopSystem);
     load();
     renderSystemStatus();
     setInterval(load, 10000);
@@ -777,15 +731,6 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # type: ignore[override]
         if self.path == "/system/start":
             res = start_system_loop()
-            payload = json.dumps(res, ensure_ascii=False).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-            return
-        if self.path == "/system/stop":
-            res = stop_system_loop()
             payload = json.dumps(res, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
