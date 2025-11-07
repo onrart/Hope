@@ -101,11 +101,32 @@ def _system_record(entry: Dict[str, Any]) -> None:
 
 
 def _system_snapshot(symbol: str) -> Dict[str, Any]:
-    from core.market_data import get_last_price, compute_atr
+    from core.market_data import (
+        get_last_price,
+        compute_atr,
+        get_klines,
+        klines_to_ohlc,
+    )
 
     last_price = get_last_price(symbol)
-    atr_val = compute_atr(symbol, interval=_SYSTEM_INTERVAL, limit=_SYSTEM_KLINE_LIMIT, period=14)
-    return {"last_price": last_price, "atr": atr_val}
+    atr_val = compute_atr(
+        symbol,
+        interval=_SYSTEM_INTERVAL,
+        limit=_SYSTEM_KLINE_LIMIT,
+        period=14,
+    )
+    klines = get_klines(symbol, interval=_SYSTEM_INTERVAL, limit=_SYSTEM_KLINE_LIMIT)
+    ohlc = klines_to_ohlc(klines)
+    recent_window = ohlc[-10:] if len(ohlc) > 10 else ohlc
+    return {
+        "source": "binance",
+        "symbol": symbol,
+        "interval": _SYSTEM_INTERVAL,
+        "kline_limit": _SYSTEM_KLINE_LIMIT,
+        "last_price": last_price,
+        "atr": atr_val,
+        "recent_ohlc": recent_window,
+    }
 
 
 def _system_tick() -> Dict[str, Any]:
